@@ -1,6 +1,6 @@
 obj-m := cntcp.o
 
-KDIR := /lib/modules/5.15.0-76-generic/build
+KDIR := /lib/modules/3.10.0-1160.92.1.el7.x86_64/build
 PWD := $(shell pwd)
 
 all:
