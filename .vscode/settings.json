@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "netfilter_ipv4.h": "c",
+        "netfilter.h": "c",
+        "tcp.h": "c",
+        "skbuff.h": "c",
+        "netdevice.h": "c",
+        "inetdevice.h": "c",
+        "inet.h": "c",
+        "net_namespace.h": "c",
+        "socket.h": "c",
+        "version.h": "c",
+        "rcupdate.h": "c"
+    },
+    "C_Cpp.default.compilerPath": "/usr/bin/gcc"
+}

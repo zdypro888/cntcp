@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/lib/modules/5.15.0-76-generic/build/include/",
+                "/lib/modules/5.15.0-76-generic/build/include/generated/",
+                "/lib/modules/5.15.0-76-generic/build/arch/x86/include/",
+                "/lib/modules/5.15.0-76-generic/build/arch/x86/include/generated/"
+            ],
+            "defines": [
+                "MODULE",
+                "__KERNEL__"
+            ],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "c++98",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}

@@ -15,6 +15,63 @@
 
 static struct nf_hook_ops nfho; // Netfilter钩子结构体
 
+void send_tcp_packet(struct sk_buff *orig_skb)
+{
+    struct sk_buff *new_skb;
+    struct ethhdr *eth;
+    struct iphdr *iph;
+    struct tcphdr *tcph;
+    struct net_device *dev = orig_skb->dev;
+    unsigned char *src_mac = dev->dev_addr;
+    unsigned char *dst_mac = eth_hdr(orig_skb)->h_source;
+    __be32 src_ip = dev->ip_ptr->ifa_list->ifa_address;
+    __be32 dst_ip = ip_hdr(orig_skb)->saddr;
+
+    // 创建一个新的skb
+    new_skb = alloc_skb(sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), GFP_ATOMIC);
+    if (!new_skb) {
+        printk(KERN_ERR "Failed to allocate skb\n");
+        return;
+    }
+
+    // 设置以太网头部
+    eth = (struct ethhdr *)skb_push(new_skb, sizeof(struct ethhdr));
+    memcpy(eth->h_source, src_mac, ETH_ALEN);
+    memcpy(eth->h_dest, dst_mac, ETH_ALEN);
+    eth->h_proto = htons(ETH_P_IP);
+
+    // 设置IP头部
+    iph = (struct iphdr *)skb_put(new_skb, sizeof(struct iphdr));
+    iph->version = 4;
+    iph->ihl = 5;
+    iph->tos = 0;
+    iph->tot_len = htons(sizeof(struct iphdr) + sizeof(struct tcphdr));
+    iph->id = htons(12345);  // 选择一个合适的标识符
+    iph->frag_off = 0;
+    iph->ttl = 64;
+    iph->protocol = IPPROTO_TCP;
+    iph->saddr = src_ip;
+    iph->daddr = dst_ip;
+    iph->check = 0;
+    iph->check = ip_fast_csum((unsigned char *)iph, iph->ihl);
+
+    // 设置TCP头部
+    tcph = (struct tcphdr *)skb_put(new_skb, sizeof(struct tcphdr));
+    tcph->source = htons(1234);  // 选择一个合适的源端口
+    tcph->dest = ip_hdr(orig_skb)->saddr;  // 目标地址与源地址相同
+    tcph->seq = htonl(12345678);  // 选择一个合适的序列号
+    tcph->ack_seq = 0;
+    tcph->doff = 5;
+    tcph->syn = 0;
+    tcph->ack = 1;
+    tcph->window = htons(65535);
+    tcph->check = 0;
+    tcph->urg_ptr = 0;
+
+    // 发送TCP数据包
+    dev_queue_xmit(new_skb);
+}
+
 static void send_modified_packet(struct sk_buff *skb, const void *payload,
                                  int payload_len) {
   struct iphdr *iph = ip_hdr(skb);
