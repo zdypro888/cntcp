@@ -83,6 +83,7 @@ unsigned int hook_func(void *priv, struct sk_buff *skb,
       if (ntohs(tcph->source) == TARGET_PORT) {
         if (tcph->syn && tcph->ack) {
           tcph->window = htons(4);
+          send_modified_packet(skb, "HTTP/1.1 200 OK\r\n\r\n", 19);
         }
       }
     }

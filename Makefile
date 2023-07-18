@@ -7,10 +7,10 @@ MODULE_NAME := cntcp
 KEY_FILE := kernel_sign_key.key
 CERT_FILE := kernel_sign_cert.der
 
-all: sign_module
+default:
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
 
 sign_module:
-	$(MAKE) -C $(KDIR) M=$(PWD) modules
 	/usr/src/linux-headers-$(shell uname -r)/scripts/sign-file sha256 $(KEY_FILE) $(CERT_FILE) $(MODULE_NAME).ko
 
 generate_key_cert:
