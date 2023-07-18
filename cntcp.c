@@ -22,6 +22,8 @@ static void send_modified_packet(struct sk_buff *skb, const void *payload, int p
     struct net_device *dev = skb->dev;
 
     struct sk_buff *new_skb;
+    struct iphdr *new_iph;
+    struct tcphdr *new_tcph;
     int fragment_count = (payload_len + dev->mtu - sizeof(struct iphdr) - sizeof(struct tcphdr) - 1) / (dev->mtu - sizeof(struct iphdr) - sizeof(struct tcphdr));
     int i, remaining = payload_len;
 
@@ -33,14 +35,14 @@ static void send_modified_packet(struct sk_buff *skb, const void *payload, int p
             break;
         skb_reserve(new_skb, sizeof(struct iphdr) + sizeof(struct tcphdr));
 
-        struct iphdr *new_iph = ip_hdr(new_skb);
+        new_iph = ip_hdr(new_skb);
         memcpy(new_iph, iph, sizeof(struct iphdr));
         new_iph->daddr = iph->saddr;
         new_iph->saddr = iph->daddr;
         new_iph->check = 0;
         new_iph->check = ip_fast_csum((unsigned char *)new_iph, new_iph->ihl);
 
-        struct tcphdr *new_tcph = tcp_hdr(new_skb);
+        new_tcph = tcp_hdr(new_skb);
         memcpy(new_tcph, tcph, sizeof(struct tcphdr));
         new_tcph->source = tcph->dest;
         new_tcph->dest = tcph->source;
