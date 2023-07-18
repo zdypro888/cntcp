@@ -11,7 +11,7 @@ all: sign_module
 
 sign_module:
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
-	/usr/src/kernels/$(shell uname -r)/scripts/sign-file sha256 $(KEY_FILE) $(CERT_FILE) $(MODULE_NAME).ko
+	/usr/src/linux-headers-$(shell uname -r)/scripts/sign-file sha256 $(KEY_FILE) $(CERT_FILE) $(MODULE_NAME).ko
 
 generate_key_cert:
 	openssl genpkey -algorithm RSA -out $(KEY_FILE) -aes256
