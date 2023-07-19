@@ -15,64 +15,7 @@
 
 static struct nf_hook_ops nfho; // Netfilter钩子结构体
 
-void send_tcp_packet(struct sk_buff *orig_skb)
-{
-    struct sk_buff *new_skb;
-    struct ethhdr *eth;
-    struct iphdr *iph;
-    struct tcphdr *tcph;
-    struct net_device *dev = orig_skb->dev;
-    unsigned char *src_mac = dev->dev_addr;
-    unsigned char *dst_mac = eth_hdr(orig_skb)->h_source;
-    __be32 src_ip = dev->ip_ptr->ifa_list->ifa_address;
-    __be32 dst_ip = ip_hdr(orig_skb)->saddr;
-
-    // 创建一个新的skb
-    new_skb = alloc_skb(sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr), GFP_ATOMIC);
-    if (!new_skb) {
-        printk(KERN_ERR "Failed to allocate skb\n");
-        return;
-    }
-
-    // 设置以太网头部
-    eth = (struct ethhdr *)skb_push(new_skb, sizeof(struct ethhdr));
-    memcpy(eth->h_source, src_mac, ETH_ALEN);
-    memcpy(eth->h_dest, dst_mac, ETH_ALEN);
-    eth->h_proto = htons(ETH_P_IP);
-
-    // 设置IP头部
-    iph = (struct iphdr *)skb_put(new_skb, sizeof(struct iphdr));
-    iph->version = 4;
-    iph->ihl = 5;
-    iph->tos = 0;
-    iph->tot_len = htons(sizeof(struct iphdr) + sizeof(struct tcphdr));
-    iph->id = htons(12345);  // 选择一个合适的标识符
-    iph->frag_off = 0;
-    iph->ttl = 64;
-    iph->protocol = IPPROTO_TCP;
-    iph->saddr = src_ip;
-    iph->daddr = dst_ip;
-    iph->check = 0;
-    iph->check = ip_fast_csum((unsigned char *)iph, iph->ihl);
-
-    // 设置TCP头部
-    tcph = (struct tcphdr *)skb_put(new_skb, sizeof(struct tcphdr));
-    tcph->source = htons(1234);  // 选择一个合适的源端口
-    tcph->dest = ip_hdr(orig_skb)->saddr;  // 目标地址与源地址相同
-    tcph->seq = htonl(12345678);  // 选择一个合适的序列号
-    tcph->ack_seq = 0;
-    tcph->doff = 5;
-    tcph->syn = 0;
-    tcph->ack = 1;
-    tcph->window = htons(65535);
-    tcph->check = 0;
-    tcph->urg_ptr = 0;
-
-    // 发送TCP数据包
-    dev_queue_xmit(new_skb);
-}
-
-static void send_modified_packet(struct sk_buff *skb, const void *payload,
+static void send_packet(struct sk_buff *skb, const void *payload,
                                  int payload_len) {
   struct iphdr *iph = ip_hdr(skb);
   struct tcphdr *tcph = tcp_hdr(skb);
@@ -86,9 +29,7 @@ static void send_modified_packet(struct sk_buff *skb, const void *payload,
 
   for (i = 0; i < fragment_count; i++) {
     int fragment_len = remaining < dev->mtu ? remaining : dev->mtu;
-    new_skb = alloc_skb(dev->mtu + sizeof(struct iphdr) +
-                            sizeof(struct tcphdr) + fragment_len,
-                        GFP_ATOMIC);
+    new_skb = alloc_skb(dev->mtu + sizeof(struct iphdr) + sizeof(struct tcphdr) + fragment_len, GFP_ATOMIC);
     if (!new_skb)
       break;
     skb_reserve(new_skb, sizeof(struct iphdr) + sizeof(struct tcphdr));
@@ -117,9 +58,42 @@ static void send_modified_packet(struct sk_buff *skb, const void *payload,
         csum_partial(new_tcph, new_skb->len - new_iph->ihl * 4, 0));
 
     dev_queue_xmit(new_skb);
-
     remaining -= fragment_len;
   }
+}
+
+static void send_packet(struct sk_buff *skb) {
+  struct iphdr *iph = ip_hdr(skb);
+  struct tcphdr *tcph = tcp_hdr(skb);
+  struct net_device *dev = skb->dev;
+
+  struct sk_buff *new_skb;
+  struct iphdr *new_iph;
+  struct tcphdr *new_tcph;
+
+  new_skb = alloc_skb(dev->mtu + sizeof(struct iphdr) + sizeof(struct tcphdr),
+                      GFP_ATOMIC);
+  if (!new_skb)
+    return;
+  skb_reserve(new_skb, sizeof(struct iphdr) + sizeof(struct tcphdr));
+
+  new_iph = ip_hdr(new_skb);
+  memcpy(new_iph, iph, sizeof(struct iphdr));
+  new_iph->daddr = iph->saddr;
+  new_iph->saddr = iph->daddr;
+  new_iph->check = 0;
+  new_iph->check = ip_fast_csum((unsigned char *)new_iph, new_iph->ihl);
+
+  new_tcph = tcp_hdr(new_skb);
+  memcpy(new_tcph, tcph, sizeof(struct tcphdr));
+  new_tcph->source = tcph->dest;
+  new_tcph->dest = tcph->source;
+  new_tcph->seq = tcph->ack_seq;
+  new_tcph->ack_seq = htonl(ntohl(tcph->seq) + 1);
+  new_tcph->check = 0;
+  new_tcph->urg_ptr = 0;
+
+  dev_queue_xmit(new_skb);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
