@@ -10,7 +10,8 @@
         "net_namespace.h": "c",
         "socket.h": "c",
         "version.h": "c",
-        "rcupdate.h": "c"
+        "rcupdate.h": "c",
+        "ip.h": "c"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/gcc"
 }

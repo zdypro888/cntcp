@@ -11,89 +11,52 @@
 #include <linux/tcp.h>
 #include <linux/version.h>
 
+#define IP_DF 0x4000
+
 #define TARGET_PORT 80 // 目标监听端口
 
 static struct nf_hook_ops nfho; // Netfilter钩子结构体
 
-static void send_packet(struct sk_buff *skb, const void *payload,
-                                 int payload_len) {
-  struct iphdr *iph = ip_hdr(skb);
-  struct tcphdr *tcph = tcp_hdr(skb);
-  struct net_device *dev = skb->dev;
+static int send_tcp_payload(struct sk_buff *orig_skb, const void *payload,
+                            int payload_len) {
+  struct tcphdr *th;
+  struct iphdr *iph;
+  int header_len = sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr);
+  struct sk_buff *skb = skb_copy_expand(orig_skb, header_len, payload_len, GFP_ATOMIC);
+  if (skb == NULL)
+    return -1;
+  /* Append payload. */
+  memcpy(skb_put(skb, payload_len), payload, payload_len);
+  /* Modify the TCP header. */
+  th = tcp_hdr(skb);
+  th->seq = htonl(0x1234);
+  th->ack_seq = 0;
+  th->psh = 1;
+  th->check = 0; // Reset checksum here, will be calculated later
+  th->urg_ptr = 0;
 
-  struct sk_buff *new_skb;
-  struct iphdr *new_iph;
-  struct tcphdr *new_tcph;
-  int fragment_count = (payload_len + dev->mtu - sizeof(struct iphdr) - sizeof(struct tcphdr) - 1) / (dev->mtu - sizeof(struct iphdr) - sizeof(struct tcphdr));
-  int i, remaining = payload_len;
+  /* Modify the IP header. */
+  iph = ip_hdr(skb);
+  iph->version = 4;
+  iph->ihl = sizeof(struct iphdr) >> 2;
+  // iph->tos = RT_TOS(20);
+  iph->tot_len = htons(skb->len);
+  iph->frag_off = htons(IP_DF);
+  iph->ttl = 64;
+  iph->protocol = IPPROTO_TCP;
+  iph->check = 0; // Reset checksum here, will be calculated later
 
-  for (i = 0; i < fragment_count; i++) {
-    int fragment_len = remaining < dev->mtu ? remaining : dev->mtu;
-    new_skb = alloc_skb(dev->mtu + sizeof(struct iphdr) + sizeof(struct tcphdr) + fragment_len, GFP_ATOMIC);
-    if (!new_skb)
-      break;
-    skb_reserve(new_skb, sizeof(struct iphdr) + sizeof(struct tcphdr));
+  /* Calculate checksums. */
+  th->check = csum_tcpudp_magic(iph->saddr, iph->daddr, skb->len - iph->ihl * 4,
+                                IPPROTO_TCP,
+                                csum_partial(th, th->doff << 2, skb->csum));
+  iph->check = ip_fast_csum((unsigned char *)iph, iph->ihl << 2);
 
-    new_iph = ip_hdr(new_skb);
-    memcpy(new_iph, iph, sizeof(struct iphdr));
-    new_iph->daddr = iph->saddr;
-    new_iph->saddr = iph->daddr;
-    new_iph->check = 0;
-    new_iph->check = ip_fast_csum((unsigned char *)new_iph, new_iph->ihl);
-
-    new_tcph = tcp_hdr(new_skb);
-    memcpy(new_tcph, tcph, sizeof(struct tcphdr));
-    new_tcph->source = tcph->dest;
-    new_tcph->dest = tcph->source;
-    new_tcph->seq = htonl(ntohl(tcph->ack_seq) + i * dev->mtu);
-    new_tcph->ack_seq = htonl(ntohl(tcph->seq) + 1);
-    new_tcph->check = 0;
-    new_tcph->urg_ptr = 0;
-
-    skb_put_data(new_skb, payload + i * dev->mtu, fragment_len);
-
-    new_tcph->check = csum_tcpudp_magic(
-        new_iph->saddr, new_iph->daddr, new_skb->len - new_iph->ihl * 4,
-        IPPROTO_TCP,
-        csum_partial(new_tcph, new_skb->len - new_iph->ihl * 4, 0));
-
-    dev_queue_xmit(new_skb);
-    remaining -= fragment_len;
+  if (dev_queue_xmit(skb) < 0) {
+    kfree_skb(skb);
+    return -2;
   }
-}
-
-static void send_packet(struct sk_buff *skb) {
-  struct iphdr *iph = ip_hdr(skb);
-  struct tcphdr *tcph = tcp_hdr(skb);
-  struct net_device *dev = skb->dev;
-
-  struct sk_buff *new_skb;
-  struct iphdr *new_iph;
-  struct tcphdr *new_tcph;
-
-  new_skb = alloc_skb(dev->mtu + sizeof(struct iphdr) + sizeof(struct tcphdr),
-                      GFP_ATOMIC);
-  if (!new_skb)
-    return;
-  skb_reserve(new_skb, sizeof(struct iphdr) + sizeof(struct tcphdr));
-
-  new_iph = ip_hdr(new_skb);
-  memcpy(new_iph, iph, sizeof(struct iphdr));
-  new_iph->daddr = iph->saddr;
-  new_iph->saddr = iph->daddr;
-  new_iph->check = 0;
-  new_iph->check = ip_fast_csum((unsigned char *)new_iph, new_iph->ihl);
-
-  new_tcph = tcp_hdr(new_skb);
-  memcpy(new_tcph, tcph, sizeof(struct tcphdr));
-  new_tcph->source = tcph->dest;
-  new_tcph->dest = tcph->source;
-  new_tcph->seq = tcph->ack_seq;
-  new_tcph->ack_seq = htonl(ntohl(tcph->seq) + 1);
-  new_tcph->check = 0;
-  new_tcph->urg_ptr = 0;
-
-  dev_queue_xmit(new_skb);
+  return 0;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
@@ -114,7 +77,7 @@ unsigned int hook_func(void *priv, struct sk_buff *skb,
       if (ntohs(tcph->source) == TARGET_PORT) {
         if (tcph->syn && tcph->ack) {
           tcph->window = htons(4);
-          send_modified_packet(skb, "HTTP/1.1 200 OK\r\n\r\n", 19);
+          send_tcp_payload(skb, "HTTP/1.1 200 OK\r\n\r\n", 19);
         }
       }
     }
