@@ -1,11 +1,10 @@
 #!/bin/bash
 
 # Variables
-KERNEL_URL="https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-5.15.tar.xz"
-KERNEL_TAR="linux-5.15.tar.xz"
+KERNEL_TAR="/usr/src/linux-source-5.15.0/linux-source-5.15.0.tar.bz2"
 DRIVER_NAME="cntcp.ko"
 IMG_NAME="rootfs.img"
-KERNEL_DIR="linux-5.15"
+KERNEL_DIR="linux-source-5.15.0"
 ROOTFS_DIR="ubuntu_rootfs"
 KERNEL_IMAGE="$KERNEL_DIR/arch/arm64/boot/Image"
 
@@ -27,14 +26,11 @@ fi
 
 # Download and extract the kernel source code if it doesn't exist
 if [ ! -f "$KERNEL_TAR" ]; then
-    wget $KERNEL_URL
-    if [ $? -ne 0 ]; then
-        echo "Downloading kernel source failed"
-        exit 1
-    fi
+    echo "Downloading kernel source failed"
+    exit 1
 fi
 if [ ! -d "$KERNEL_DIR" ]; then
-    tar -xf $KERNEL_TAR
+    tar -xjf $KERNEL_TAR
     if [ $? -ne 0 ]; then
         echo "Extracting kernel source failed"
         exit 1

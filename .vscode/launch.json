@@ -5,7 +5,7 @@
             "name": "Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/linux-5.15/arch/arm64/boot/Image",
+            "program": "${workspaceFolder}/linux-source-5.15.0/arch/arm64/boot/Image",
             "miDebuggerPath": "/usr/bin/gdb",
             "miDebuggerServerAddress": "localhost:1234",
             "cwd": "${workspaceFolder}",
@@ -26,8 +26,7 @@
                     {
                         "text": "hbreak *my_module_init"
                     }
-                ],
-                "miDebuggerArgs": "-exec-run"
+                ]
             }
         }
     ]
