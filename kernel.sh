@@ -74,20 +74,29 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Copy the root filesystem and driver
+# Copy the root filesystem
 cp -a $ROOTFS_DIR/* mnt/
 if [ $? -ne 0 ]; then
     echo "Copying rootfs failed"
     exit 1
 fi
-cp $DRIVER_NAME mnt/
+
+# Create modules directory and copy driver
+MODULES_DIR="mnt/lib/modules/5.15.99/kernel/drivers/"
+mkdir -p "$MODULES_DIR"
+if [ $? -ne 0 ]; then
+    echo "Creating modules directory failed"
+    exit 1
+fi
+
+cp "$DRIVER_NAME" "$MODULES_DIR"
 if [ $? -ne 0 ]; then
     echo "Copying driver failed"
     exit 1
 fi
 
-# 在 rc.local 中添加加载驱动的命令
-echo "/sbin/insmod /$DRIVER_NAME" | tee mnt/etc/rc.local
+# Add module name to /etc/modules
+echo "$DRIVER_NAME" | tee -a mnt/etc/modules
 
 # Unmount the filesystem
 umount mnt
