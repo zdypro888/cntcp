@@ -75,28 +75,31 @@ if [ $? -ne 0 ]; then
 fi
 
 # Copy the root filesystem
-cp -a $ROOTFS_DIR/* mnt/
+cp -a $ROOTFS_DIR/* mnt/root/
 if [ $? -ne 0 ]; then
     echo "Copying rootfs failed"
     exit 1
 fi
 
-# Create modules directory and copy driver
-MODULES_DIR="mnt/lib/modules/5.15.99/kernel/drivers/"
-mkdir -p "$MODULES_DIR"
-if [ $? -ne 0 ]; then
-    echo "Creating modules directory failed"
-    exit 1
-fi
+echo "#!/bin/bash
+/sbin/insmod /root/$DRIVER_NAME" | tee mnt/etc/rc.local > /dev/null
 
-cp "$DRIVER_NAME" "$MODULES_DIR"
-if [ $? -ne 0 ]; then
-    echo "Copying driver failed"
-    exit 1
-fi
+chroot mnt chmod +x /etc/rc.local
 
-# Add module name to /etc/modules
-echo "$DRIVER_NAME" | tee -a mnt/etc/modules
+echo "[Unit]
+Description=Load rc.local
+Before=local-fs.target
+After=modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart=/etc/rc.local
+
+[Install]
+WantedBy=local-fs.target" | tee mnt/etc/systemd/system/rc-local.service > /dev/null
+
+# Enable the service unit
+chroot mnt systemctl enable rc-local.service
 
 # Unmount the filesystem
 umount mnt
@@ -107,4 +110,4 @@ fi
 rmdir mnt
 
 # Run QEMU
-qemu-system-aarch64 -machine virt -cpu cortex-a57 -kernel $KERNEL_IMAGE -drive if=none,file=$IMG_NAME,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -append "root=/dev/vda console=ttyAMA0" -s -S -nographic
+qemu-system-aarch64 -machine virt -cpu cortex-a57 -kernel $KERNEL_IMAGE -drive if=none,file=$IMG_NAME,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -append "root=/dev/vda console=ttyAMA0" -nographic -netdev user,id=net0 -device virtio-net-device,netdev=net0 -s -S
