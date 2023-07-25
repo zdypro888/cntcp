@@ -1,6 +1,7 @@
 obj-m := cntcp.o
 
-KDIR := /lib/modules/5.15.99/build
+VERSION := 5.15.111
+KDIR := /lib/modules/$(VERSION)/build
 PWD := $(shell pwd)
 
 MODULE_NAME := cntcp
@@ -11,7 +12,7 @@ default:
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
 
 sign_module:
-	/usr/src/linux-headers-5.15.99/scripts/sign-file sha256 $(KEY_FILE) $(CERT_FILE) $(MODULE_NAME).ko
+	/usr/src/linux-headers-$(VERSION)/scripts/sign-file sha256 $(KEY_FILE) $(CERT_FILE) $(MODULE_NAME).ko
 
 generate_key_cert:
 	openssl genpkey -algorithm RSA -out $(KEY_FILE) -aes256
