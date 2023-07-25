@@ -42,6 +42,7 @@ if [ $? -ne 0 ]; then
 fi
 
 cp $DRIVER_NAME mnt/root/
+cp listener/listener mnt/root/
 cp -a /etc/netplan/* mnt//etc/netplan/
 
 echo "#!/bin/bash
@@ -76,4 +77,4 @@ fi
 rmdir mnt
 
 # Run QEMU
-qemu-system-aarch64 -machine virt -cpu cortex-a57 -kernel $KERNEL_IMAGE -drive if=none,file=$ROOTFS_IMAGE,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -append "root=/dev/vda rw console=ttyAMA0"  -nographic -netdev user,id=net0,hostfwd=tcp::2222-:22 -device virtio-net-device,netdev=net0
+qemu-system-aarch64 -machine virt -cpu cortex-a57 -kernel $KERNEL_IMAGE -drive if=none,file=$ROOTFS_IMAGE,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -append "root=/dev/vda rw console=ttyAMA0"  -nographic -netdev user,id=net0,hostfwd=tcp::8080-:80 -device virtio-net-device,netdev=net0 -s -S

@@ -5,7 +5,7 @@
             "name": "Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "/home/zdypro/linux-source-5.15.0/arch/arm64/boot/Image",
+            "program": "/root/linux-source-5.15.0/arch/arm64/boot/Image",
             "cwd": "${workspaceFolder}",
             "externalConsole": false,
             "stopAtEntry": false,
