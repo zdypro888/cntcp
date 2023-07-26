@@ -9,6 +9,7 @@
             "cwd": "${workspaceFolder}",
             "externalConsole": false,
             "stopAtEntry": false,
+            "targetArchitecture": "arm64",
             "miDebuggerPath": "/usr/bin/gdb",
             "miDebuggerServerAddress": "localhost:1234",
             "linux": {
@@ -18,7 +19,7 @@
                         "text": "add-symbol-file ${workspaceFolder}/cntcp.ko"
                     }
                 ],
-                "miDebuggerArgs": "vmlinux"
+                "miDebuggerArgs": "vmlinux",
             }
         }
     ]

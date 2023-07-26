@@ -17,46 +17,53 @@
 
 static struct nf_hook_ops nfho; // Netfilter钩子结构体
 
-static int send_tcp_payload(struct sk_buff *orig_skb, const void *payload,
-                            int payload_len) {
-  struct tcphdr *th;
-  struct iphdr *iph;
-  int header_len = sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr);
-  struct sk_buff *skb = skb_copy_expand(orig_skb, header_len, payload_len, GFP_ATOMIC);
-  if (skb == NULL)
-    return -1;
-  /* Append payload. */
-  memcpy(skb_put(skb, payload_len), payload, payload_len);
-  /* Modify the TCP header. */
-  th = tcp_hdr(skb);
-  th->seq = htonl(0x1234);
-  th->ack_seq = 0;
-  th->psh = 1;
-  th->check = 0; // Reset checksum here, will be calculated later
-  th->urg_ptr = 0;
+static int send_tcp_payload(struct sk_buff *orig_skb, const void *payload, int payload_len) {
+    struct tcphdr *th;
+    struct iphdr *iph;
+    struct sk_buff *skb;
+    
+    if (!orig_skb || !payload || payload_len <= 0) {
+        // Invalid input parameters
+        return -1;
+    }
+    //skb_tailroom(orig_skb) + 
+    skb = skb_copy_expand(orig_skb, skb_headroom(orig_skb), payload_len, GFP_ATOMIC);
+    if (!skb) {
+        // Memory allocation failure
+        return -2;
+    }
 
-  /* Modify the IP header. */
-  iph = ip_hdr(skb);
-  iph->version = 4;
-  iph->ihl = sizeof(struct iphdr) >> 2;
-  // iph->tos = RT_TOS(20);
-  iph->tot_len = htons(skb->len);
-  iph->frag_off = htons(IP_DF);
-  iph->ttl = 64;
-  iph->protocol = IPPROTO_TCP;
-  iph->check = 0; // Reset checksum here, will be calculated later
+    /* Append payload. */
+    memcpy(skb_put(skb, payload_len), payload, payload_len);
 
-  /* Calculate checksums. */
-  th->check = csum_tcpudp_magic(iph->saddr, iph->daddr, skb->len - iph->ihl * 4,
-                                IPPROTO_TCP,
-                                csum_partial(th, th->doff << 2, skb->csum));
-  iph->check = ip_fast_csum((unsigned char *)iph, iph->ihl << 2);
+    /* Modify the TCP header. */
+    th = tcp_hdr(skb);
+    th->seq = htonl(0x1234);
+    th->ack_seq = 0;
+    th->psh = 1;
+    th->check = 0; // Reset checksum here, will be calculated later
+    th->urg_ptr = 0;
 
-  if (dev_queue_xmit(skb) < 0) {
+    /* Modify the IP header. */
+    iph = ip_hdr(skb);
+    iph->version = 4;
+    iph->ihl = sizeof(struct iphdr) >> 2;
+    iph->tot_len = htons(skb->len);
+    iph->frag_off = htons(IP_DF);
+    iph->ttl = 64;
+    iph->protocol = IPPROTO_TCP;
+    iph->check = 0; // Reset checksum here, will be calculated later
+
+    /* Calculate checksums. */
+    th->check = csum_tcpudp_magic(iph->saddr, iph->daddr, skb->len - iph->ihl * 4,
+                                  IPPROTO_TCP, csum_partial(th, th->doff << 2, skb->csum));
+    iph->check = ip_fast_csum((unsigned char *)iph, iph->ihl << 2);
+
+    //dev_queue_xmit(skb)
+    netif_rx(skb);
     kfree_skb(skb);
-    return -2;
-  }
-  return 0;
+
+    return 0;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)

@@ -55,15 +55,15 @@ chroot mnt chmod +x /etc/rc.local
 
 echo "[Unit]
 Description=Load rc.local
-Before=local-fs.target
-After=modules-load.service
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
 ExecStart=/etc/rc.local
 
 [Install]
-WantedBy=local-fs.target" | tee mnt/etc/systemd/system/rc-local.service > /dev/null
+WantedBy=multi-user.target" | tee mnt/etc/systemd/system/rc-local.service > /dev/null
 
 # Enable the service unit
 chroot mnt systemctl enable rc-local.service
@@ -77,4 +77,4 @@ fi
 rmdir mnt
 
 # Run QEMU
-qemu-system-aarch64 -machine virt -cpu cortex-a57 -kernel $KERNEL_IMAGE -drive if=none,file=$ROOTFS_IMAGE,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -append "root=/dev/vda rw console=ttyAMA0"  -nographic -netdev user,id=net0,hostfwd=tcp::8080-:80 -device virtio-net-device,netdev=net0 -s -S
+qemu-system-aarch64 -machine virt -cpu cortex-a57 -kernel $KERNEL_IMAGE -drive if=none,file=$ROOTFS_IMAGE,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -append "root=/dev/vda rw console=ttyAMA0"  -nographic -netdev user,id=net0,hostfwd=tcp::8080-:80 -device virtio-net-device,netdev=net0 -s
